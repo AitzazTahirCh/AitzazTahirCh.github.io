@@ -14,15 +14,11 @@
 <meta name="twitter:image" content="https://aitzaztahirch.github.io/headshot.jpg">
 <meta name="theme-color" content="#08090b">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='11' fill='%2308090b'/%3E%3Cpath d='M11 35 L24 15 L37 27' stroke='%23a3e635' stroke-width='3.1' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='11' cy='35' r='4.2' fill='%2308090b' stroke='%23a3e635' stroke-width='3.1'/%3E%3Ccircle cx='24' cy='15' r='4.2' fill='%23a3e635'/%3E%3Ccircle cx='37' cy='27' r='4.2' fill='%2308090b' stroke='%23a3e635' stroke-width='3.1'/%3E%3C/svg%3E">
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script>document.documentElement.className += " js";</script>
 <style>
-@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
-@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
-@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
-@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
-@font-face{font-family:'Inter';font-style:normal;font-weight:800;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
-@font-face{font-family:'Inter';font-style:normal;font-weight:900;font-display:swap;src:url("fonts/inter.woff2") format('woff2')}
 :root{
   --bg:#08090b;
   --bg2:#0c0e11;
@@ -67,8 +63,7 @@ h2.title{font-size:clamp(2rem,4.6vw,3.4rem);font-weight:800;letter-spacing:-.03e
 /* ---------- reveal ---------- */
 .js .rv{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.22,.61,.21,1),transform .9s cubic-bezier(.22,.61,.21,1);transition-delay:var(--d,0s)}
 .js .rv.in{opacity:1;transform:none}
-.js .hero .rv{animation:rvIn .95s cubic-bezier(.22,.61,.21,1) both;animation-delay:var(--d,0s)}
-@keyframes rvIn{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+/* hero .rv uses the transition system above, armed by script after first paint */
 
 /* ---------- nav ---------- */
 header.nav{position:fixed;inset:0 0 auto 0;z-index:60;transition:background .35s,border-color .35s,backdrop-filter .35s;border-bottom:1px solid transparent}
@@ -754,8 +749,35 @@ footer .sub{color:var(--muted);margin:22px 0 36px;max-width:56ch;position:relati
     if (st && !st.classList.contains("rv")) countUp(el);
   });
 
-  /* Hero entrance is pure CSS (rvIn, in the stylesheet): no script in
-     its critical path, so nothing can leave the hero blank or slam it. */
+  /* Hero entrance: triggered only after the first real paint (double rAF).
+     A CSS animation armed at parse time burns its stagger on a busy phone
+     before the first frame is shown, so the whole hero used to pop in at
+     once. Transitions triggered from here start from a painted state. */
+  var heroRvs = document.querySelectorAll(".hero .rv");
+  var heroArmed = false;
+  function armHero(){
+    if (heroArmed) return; heroArmed = true;
+    heroRvs.forEach(function(el){ el.classList.add("in"); });
+  }
+  if (reduce) { armHero(); }
+  else {
+    /* Arm only once frames are genuinely flowing: two consecutive rAF
+       ticks with real time between them prove the browser is painting,
+       so the hidden state has been seen and the stagger can play. A
+       starved webview batches ticks with ~0ms gaps, which resets the
+       count instead of slamming the hero in whole. */
+    var lastTick = 0, goodFrames = 0;
+    function heroGate(ts){
+      if (heroArmed) return;
+      if (lastTick && ts - lastTick > 8 && ts - lastTick < 250) { goodFrames++; }
+      else { goodFrames = 0; }
+      lastTick = ts;
+      if (goodFrames >= 2) { armHero(); return; }
+      requestAnimationFrame(heroGate);
+    }
+    requestAnimationFrame(heroGate);
+    setTimeout(armHero, 2500);
+  }
 
   var moreBtn = document.getElementById("moreBtn");
   var moreWork = document.getElementById("moreWork");
