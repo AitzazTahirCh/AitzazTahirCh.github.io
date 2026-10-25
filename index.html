@@ -63,8 +63,7 @@ h2.title{font-size:clamp(2rem,4.6vw,3.4rem);font-weight:800;letter-spacing:-.03e
 /* ---------- reveal ---------- */
 .js .rv{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.22,.61,.21,1),transform .9s cubic-bezier(.22,.61,.21,1);transition-delay:var(--d,0s)}
 .js .rv.in{opacity:1;transform:none}
-.js .hero .rv{animation:rvIn .95s cubic-bezier(.22,.61,.21,1) both;animation-delay:var(--d,0s)}
-@keyframes rvIn{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+/* hero .rv uses the transition system above, armed by script after first paint */
 
 /* ---------- nav ---------- */
 header.nav{position:fixed;inset:0 0 auto 0;z-index:60;transition:background .35s,border-color .35s,backdrop-filter .35s;border-bottom:1px solid transparent}
@@ -268,23 +267,25 @@ footer .sub{color:var(--muted);margin:22px 0 36px;max-width:56ch;position:relati
   .logo small{display:none}
   .btn-sm{padding:9px 15px;font-size:.84rem}
   .hero{padding-top:116px;padding-bottom:64px}
-  .chip-float{left:10px;bottom:14px;padding:11px 14px}
+  .chip-float{left:10px;bottom:14px;padding:11px 14px;max-width:238px}
   .chip-float b{font-size:1.08rem}
   .exp-card{padding:22px}
   .topic-row{gap:14px;padding:18px 2px}
   .foot-links .btn{flex:1 1 auto;justify-content:center}
   .more-wrap{max-height:138px}
   .hero-photo::before{top:-10px;right:-10px}
-  .hero-photo::after{left:-6px;bottom:-20px;width:150px;height:96px}
+  .hero-photo::after{left:-4px;bottom:-12px;width:120px;height:70px;background-size:15px 15px}
 }
 @media(max-width:600px){
-  .hero{padding:96px 0 30px}
+  .hero{padding:88px 0 30px}
   .hero h1{font-size:2.32rem;margin:16px 0}
   .hero .name-line{font-size:.92rem}
   .hero p.lede{font-size:.99rem;margin-bottom:24px}
   .hero-grid{gap:24px}
-  .hero-photo{width:min(236px,64vw);transform:translateY(-6px)}
+  .hero-photo{width:min(272px,74vw);transform:translateY(-6px)}
   .scroll-hint{display:none}
+  .eyebrow{font-size:.66rem;letter-spacing:.17em}
+  .chip-float small{display:block;line-height:1.35}
   .cta-row .btn{padding:12px 20px;font-size:.9rem}
 }
 @media(prefers-reduced-motion:reduce){
@@ -676,11 +677,23 @@ footer .sub{color:var(--muted);margin:22px 0 36px;max-width:56ch;position:relati
     });
   }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
 
-  document.querySelectorAll(".rv").forEach(function(el){ io.observe(el); });
+  document.querySelectorAll(".rv").forEach(function(el){ if (!el.closest(".hero")) io.observe(el); });
   document.querySelectorAll(".stat .num [data-count]").forEach(function(el){
     var st = el.closest(".stat");
     if (st && !st.classList.contains("rv")) countUp(el);
   });
+
+  /* Hero entrance: triggered only after the first real paint (double rAF).
+     A CSS animation armed at parse time burns its stagger on a busy phone
+     before the first frame is shown, so the whole hero used to pop in at
+     once. Transitions triggered from here start from a painted state. */
+  var heroRvs = document.querySelectorAll(".hero .rv");
+  function armHero(){ heroRvs.forEach(function(el){ el.classList.add("in"); }); }
+  if (reduce) { armHero(); }
+  else {
+    requestAnimationFrame(function(){ requestAnimationFrame(armHero); });
+    setTimeout(armHero, 1500);
+  }
 
   var moreBtn = document.getElementById("moreBtn");
   var moreWork = document.getElementById("moreWork");
