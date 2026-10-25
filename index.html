@@ -682,10 +682,9 @@ footer .sub{color:var(--muted);margin:22px 0 36px;max-width:56ch;position:relati
     if (el._counted) return; el._counted = 1;
     var target = parseInt(el.getAttribute("data-count"), 10);
     if (reduce || isNaN(target)) { el.textContent = target; return; }
-    var start = null, dur = 1400;
-    function step(ts){
-      if (!start) start = ts;
-      var p = Math.min((ts - start) / dur, 1);
+    var p = 0, steps = 84; /* about 1.4s at 60fps, slower but always visible on starved screens */
+    function step(){
+      p = Math.min(p + 1 / steps, 1);
       var eased = 1 - Math.pow(1 - p, 3);
       el.textContent = Math.round(target * eased);
       if (p < 1) requestAnimationFrame(step);
@@ -755,11 +754,29 @@ footer .sub{color:var(--muted);margin:22px 0 36px;max-width:56ch;position:relati
      before the first frame is shown, so the whole hero used to pop in at
      once. Transitions triggered from here start from a painted state. */
   var heroRvs = document.querySelectorAll(".hero .rv");
-  function armHero(){ heroRvs.forEach(function(el){ el.classList.add("in"); }); }
+  var heroArmed = false;
+  function armHero(){
+    if (heroArmed) return; heroArmed = true;
+    heroRvs.forEach(function(el){ el.classList.add("in"); });
+  }
   if (reduce) { armHero(); }
   else {
-    requestAnimationFrame(function(){ requestAnimationFrame(armHero); });
-    setTimeout(armHero, 1500);
+    /* Arm only once frames are genuinely flowing: two consecutive rAF
+       ticks with real time between them prove the browser is painting,
+       so the hidden state has been seen and the stagger can play. A
+       starved webview batches ticks with ~0ms gaps, which resets the
+       count instead of slamming the hero in whole. */
+    var lastTick = 0, goodFrames = 0;
+    function heroGate(ts){
+      if (heroArmed) return;
+      if (lastTick && ts - lastTick > 8 && ts - lastTick < 250) { goodFrames++; }
+      else { goodFrames = 0; }
+      lastTick = ts;
+      if (goodFrames >= 2) { armHero(); return; }
+      requestAnimationFrame(heroGate);
+    }
+    requestAnimationFrame(heroGate);
+    setTimeout(armHero, 2500);
   }
 
   var moreBtn = document.getElementById("moreBtn");
